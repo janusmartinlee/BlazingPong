@@ -1,0 +1,137 @@
+﻿@page "/pong"
+@rendermode InteractiveWebAssembly
+@using PongEngine
+@using SkiaSharp
+@using SkiaSharp.Views.Blazor
+@using System.Numerics
+@inject GameService GameService
+
+<div class="container" tabindex="0" @onkeydown="@HandleKeyDown" @onkeyup="@HandleKeyUp">
+    <div class="row">
+        <div class="p-2 canvas-container">
+
+            <SKGLView OnPaintSurface="OnPaintSurface" IgnorePixelScaling="true" EnableRenderLoop="true"/>
+
+        </div>
+    </div>
+</div>
+
+@code {
+    private InputState inputState = new();
+
+    private SKPaint _ballPaint = new SKPaint
+        {
+            IsAntialias = true,
+            Color = SKColors.CornflowerBlue,
+        };
+
+    private SKPaint _paddlePaint = new SKPaint
+        {
+            IsAntialias = true,
+            Color = SKColors.CornflowerBlue,
+        };
+
+    private SKPaint _borderPaint = new SKPaint
+        {
+            Color = SKColors.LightGray,
+            StrokeWidth = 5f,
+            Style = SKPaintStyle.Stroke
+        };
+
+    private SKPaint _centerLinePaint = new SKPaint
+        {
+            Color = SKColors.LightGray,
+            StrokeWidth = 2f,
+            Style = SKPaintStyle.Stroke,
+            PathEffect = SKPathEffect.CreateDash(new float[] { 15, 15 }, 0)
+        };
+
+    protected override void OnInitialized()
+    {
+        GameService.OnStateChanged += StateHasChanged;
+    }
+
+    void OnPaintSurface(SKPaintGLSurfaceEventArgs e)
+    {
+        var canvas = e.Surface.Canvas;
+        var surfaceSize = e.Info.Size;
+
+        canvas.Clear(SKColors.Black);
+
+        var gameState = GameService.GetState();
+
+        // Scaling factors
+        float scaleX = surfaceSize.Width / gameState.Arena.Width;
+        float scaleY = surfaceSize.Height / gameState.Arena.Height;
+
+        // Translate game coordinates to canvas center
+        float centerX = surfaceSize.Width / 2f;
+        float centerY = surfaceSize.Height / 2f;
+
+        // Draw arena border
+        var borderRect = new SKRect(0, 0, surfaceSize.Width, surfaceSize.Height);
+        canvas.DrawRect(borderRect, _borderPaint);
+
+        // Draw center line
+        var centerLine = new SKPath();
+        centerLine.MoveTo(centerX, 0);
+        centerLine.LineTo(centerX, surfaceSize.Height);
+        canvas.DrawPath(centerLine, _centerLinePaint);
+
+        // Draw the ball (scaled & centered)
+        var ballPos = new SKPoint(
+            centerX + gameState.Ball.Position.X * scaleX,
+            centerY + gameState.Ball.Position.Y * scaleY
+        );
+        float ballRadius = gameState.Ball.Radius * scaleX; // Assuming uniform scaling
+        canvas.DrawCircle(ballPos, ballRadius, _ballPaint);
+
+        // Player 1 paddle (scaled & centered)
+        var paddleOneRect = new SKRect(
+            centerX + (gameState.PlayerOne.Position.X - gameState.PlayerOne.Width / 2f) * scaleX,
+            centerY + (gameState.PlayerOne.Position.Y - gameState.PlayerOne.Height / 2f) * scaleY,
+            centerX + (gameState.PlayerOne.Position.X + gameState.PlayerOne.Width / 2f) * scaleX,
+            centerY + (gameState.PlayerOne.Position.Y + gameState.PlayerOne.Height / 2f) * scaleY
+        );
+        canvas.DrawRect(paddleOneRect, _paddlePaint);
+
+        // Player 2 paddle (scaled & centered)
+        var paddleTwoRect = new SKRect(
+            centerX + (gameState.PlayerTwo.Position.X - gameState.PlayerTwo.Width / 2f) * scaleX,
+            centerY + (gameState.PlayerTwo.Position.Y - gameState.PlayerTwo.Height / 2f) * scaleY,
+            centerX + (gameState.PlayerTwo.Position.X + gameState.PlayerTwo.Width / 2f) * scaleX,
+            centerY + (gameState.PlayerTwo.Position.Y + gameState.PlayerTwo.Height / 2f) * scaleY
+        );
+        canvas.DrawRect(paddleTwoRect, _paddlePaint);
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        //TODO: change to use movement enum, there should not be any values here
+        if (e.Key == "ArrowUp")
+            inputState.PlayerTwoMovementState = MovementState.MovingUp;
+        if (e.Key == "ArrowDown")
+            inputState.PlayerTwoMovementState = MovementState.MovingDown;
+        if (e.Key == "w")
+            inputState.PlayerOneMovementState = MovementState.MovingUp;
+        if (e.Key == "s")
+            inputState.PlayerOneMovementState = MovementState.MovingDown;
+
+    GameService.UpdateInput(inputState);
+    }
+
+    private void HandleKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "ArrowUp" || e.Key == "ArrowDown")
+            inputState.PlayerTwoMovementState = MovementState.Idle;
+        if (e.Key == "w" || e.Key == "s")
+            inputState.PlayerOneMovementState = MovementState.Idle;
+
+        GameService.UpdateInput(inputState);
+    }
+
+    public void Dispose()
+    {
+        GameService.OnStateChanged -= StateHasChanged;
+    }
+}

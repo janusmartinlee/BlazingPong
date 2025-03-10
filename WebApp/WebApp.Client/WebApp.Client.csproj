@@ -13,4 +13,12 @@
     <PackageReference Include="SkiaSharp.Views.Blazor" Version="3.116.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\PongEngine\PongEngine.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Components\" />
+  </ItemGroup>
+
 </Project>
