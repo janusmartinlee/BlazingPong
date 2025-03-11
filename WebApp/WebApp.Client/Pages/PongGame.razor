@@ -6,18 +6,35 @@
 @using System.Numerics
 @inject GameService GameService
 
-<div class="container" tabindex="0" @onkeydown="@HandleKeyDown" @onkeyup="@HandleKeyUp">
-    <div class="row">
-        <div class="p-2 canvas-container">
-
-            <SKGLView OnPaintSurface="OnPaintSurface" IgnorePixelScaling="true" EnableRenderLoop="true"/>
-
+<div class="p-5 container canvas-container" tabindex="0" @onkeydown="@HandleKeyDown" @onkeyup="@HandleKeyUp">
+    @if (_gameState == null)
+    {
+        <div class ="game-overlay">
+            <button @onclick="() => GameService.StartGame()">Play</button>
         </div>
-    </div>
+    }
+    else
+    {
+        @* <div class="p-5"> *@
+                <SKGLView OnPaintSurface="OnPaintSurface" IgnorePixelScaling="true" EnableRenderLoop="true"/>
+
+                @if (_gameState.IsGameOver)
+                {
+                    <div class="game-overlay">
+                        <h2>Game Over</h2>
+                        <p>@($"{_gameState.Ball.Hitter?.Name} wins")</p>
+                        <button @onclick="() => GameService.RestartGame()">Play Again</button>
+                    </div>
+                }
+
+            @* </div> *@
+    }
 </div>
 
 @code {
     private InputState inputState = new();
+
+    private GameState? _gameState;
 
     private SKPaint _ballPaint = new SKPaint
         {
@@ -46,23 +63,39 @@
             PathEffect = SKPathEffect.CreateDash(new float[] { 15, 15 }, 0)
         };
 
-    protected override void OnInitialized()
+    private SKPaint _scorePaint = new SKPaint
+        {
+            Color = SKColors.LightGray,
+        };
+
+    private SKFont _font = new SKFont(SKTypeface.FromFamilyName("Arial") , 50f);
+
+    private void HandleGameStateChanged()
     {
-        GameService.OnStateChanged += StateHasChanged;
+        _gameState = GameService.GetState();
+        StateHasChanged();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            GameService.OnStateChanged += HandleGameStateChanged;
+            GameService.InitializeGame(GameMode.PlayerVsBot);
+        }
     }
 
     void OnPaintSurface(SKPaintGLSurfaceEventArgs e)
     {
+        if (_gameState == null) return;
+
         var canvas = e.Surface.Canvas;
         var surfaceSize = e.Info.Size;
-
         canvas.Clear(SKColors.Black);
 
-        var gameState = GameService.GetState();
-
         // Scaling factors
-        float scaleX = surfaceSize.Width / gameState.Arena.Width;
-        float scaleY = surfaceSize.Height / gameState.Arena.Height;
+        float scaleX = surfaceSize.Width / _gameState.Arena.Width;
+        float scaleY = surfaceSize.Height / _gameState.Arena.Height;
 
         // Translate game coordinates to canvas center
         float centerX = surfaceSize.Width / 2f;
@@ -80,29 +113,33 @@
 
         // Draw the ball (scaled & centered)
         var ballPos = new SKPoint(
-            centerX + gameState.Ball.Position.X * scaleX,
-            centerY + gameState.Ball.Position.Y * scaleY
+            centerX + _gameState.Ball.Position.X * scaleX,
+            centerY + _gameState.Ball.Position.Y * scaleY
         );
-        float ballRadius = gameState.Ball.Radius * scaleX; // Assuming uniform scaling
+        float ballRadius = _gameState.Ball.Radius * scaleX; // Assuming uniform scaling
         canvas.DrawCircle(ballPos, ballRadius, _ballPaint);
 
         // Player 1 paddle (scaled & centered)
         var paddleOneRect = new SKRect(
-            centerX + (gameState.PlayerOne.Position.X - gameState.PlayerOne.Width / 2f) * scaleX,
-            centerY + (gameState.PlayerOne.Position.Y - gameState.PlayerOne.Height / 2f) * scaleY,
-            centerX + (gameState.PlayerOne.Position.X + gameState.PlayerOne.Width / 2f) * scaleX,
-            centerY + (gameState.PlayerOne.Position.Y + gameState.PlayerOne.Height / 2f) * scaleY
+            centerX + (_gameState.PlayerOne.Position.X - _gameState.PlayerOne.Width / 2f) * scaleX,
+            centerY + (_gameState.PlayerOne.Position.Y - _gameState.PlayerOne.Height / 2f) * scaleY,
+            centerX + (_gameState.PlayerOne.Position.X + _gameState.PlayerOne.Width / 2f) * scaleX,
+            centerY + (_gameState.PlayerOne.Position.Y + _gameState.PlayerOne.Height / 2f) * scaleY
         );
         canvas.DrawRect(paddleOneRect, _paddlePaint);
 
         // Player 2 paddle (scaled & centered)
         var paddleTwoRect = new SKRect(
-            centerX + (gameState.PlayerTwo.Position.X - gameState.PlayerTwo.Width / 2f) * scaleX,
-            centerY + (gameState.PlayerTwo.Position.Y - gameState.PlayerTwo.Height / 2f) * scaleY,
-            centerX + (gameState.PlayerTwo.Position.X + gameState.PlayerTwo.Width / 2f) * scaleX,
-            centerY + (gameState.PlayerTwo.Position.Y + gameState.PlayerTwo.Height / 2f) * scaleY
+            centerX + (_gameState.PlayerTwo.Position.X - _gameState.PlayerTwo.Width / 2f) * scaleX,
+            centerY + (_gameState.PlayerTwo.Position.Y - _gameState.PlayerTwo.Height / 2f) * scaleY,
+            centerX + (_gameState.PlayerTwo.Position.X + _gameState.PlayerTwo.Width / 2f) * scaleX,
+            centerY + (_gameState.PlayerTwo.Position.Y + _gameState.PlayerTwo.Height / 2f) * scaleY
         );
         canvas.DrawRect(paddleTwoRect, _paddlePaint);
+
+        // Draw scores
+        canvas.DrawText(_gameState.PlayerOne.Score.ToString(), centerX - 50, 75, SKTextAlign.Center, _font, _scorePaint);
+        canvas.DrawText(_gameState.PlayerTwo.Score.ToString(), centerX + 50, 75, SKTextAlign.Center, _font, _scorePaint);
     }
 
     private void HandleKeyDown(KeyboardEventArgs e)

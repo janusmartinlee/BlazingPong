@@ -2,7 +2,7 @@
 {
     public interface IGameEngine
     {
-        PongGameState GetState();
-        void Update(InputState input);
+        GameState GetState();
+        bool Update(InputState input);
     }
 }
